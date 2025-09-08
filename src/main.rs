@@ -28,6 +28,7 @@ use bzip2::Compression;
 use bzip2::write::BzEncoder;
 use falcon_air::big_air::prove_falcon;
 use falcon_air::input::{MSG_POINT, PK, TEST_S1};
+use tracing_subscriber::fmt::format::FmtSpan;
 
 /// Main function that generates a complete STARK proof for Falcon signature operations.
 ///
@@ -49,6 +50,9 @@ use falcon_air::input::{MSG_POINT, PK, TEST_S1};
 /// - Serialization fails
 /// - Compression fails
 fn main() {
+    tracing_subscriber::fmt()
+        .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+        .init();
     // Generate a complete STARK proof for all arithmetic operations
     // This includes modular addition, multiplication, subtraction, and range checking
     let proof = prove_falcon(TEST_S1, PK, MSG_POINT).unwrap();

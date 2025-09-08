@@ -423,7 +423,6 @@ impl BigClaim {
         columns.push(high_sig_bound_check_preprocessed);
         ids.push(range_check::RangeCheck::<HIGH_SIG_BOUND>::id());
 
-        // TODO; add the last roots when butterfly is using this preprocessed column as well
         for i in 2..=POLY_LOG_SIZE {
             let roots_preprocessed = roots::preprocessed::Roots::new(i as usize).gen_column_simd();
             columns.extend(roots_preprocessed);

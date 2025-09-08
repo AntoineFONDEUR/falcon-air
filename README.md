@@ -1,202 +1,134 @@
 # Falcon-AIR
 
-A STARK proof system implementation for modular arithmetic operations in the field Z_q where q = 12 * 1024 + 1 = 12289.
+A STARK proof system that proves modular arithmetic in the ring \$\mathbb{Z}\_q\$ with $q = 12 \cdot 1024 + 1 = 12289$, tailored to the needs of the Falcon signature scheme. Built on top of the [STWO](https://github.com/starkware-libs/stwo) framework.
 
-## Overview
+> **Status:** Research prototype. This code has not been audited. Do not use in production.
 
-Falcon-AIR provides a complete STARK proof system for modular arithmetic operations that are compatible with the Falcon signature scheme. The system generates proofs for:
+---
 
-- **Modular Addition**: (a + b) mod q
-- **Modular Multiplication**: (a * b) mod q  
-- **Modular Subtraction**: (a - b) mod q
-- **Range Checking**: Ensuring all results are in [0, q)
+## Highlights
 
-All operations are performed in the field Z_q where q = 12289, which is specifically chosen to be compatible with the Falcon signature scheme requirements.
+* **Operations proved:** modular addition, subtraction, multiplication, plus **range checking** (values in $[0,q)$).
+* **Single “Big AIR”:** all constraints are wired together into one proof over consistent traces.
+* **NTT/INTT circuits:** efficient polynomial evaluation & interpolation used by Falcon-like flows.
+* **Precomputed tables:** roots of unity and modular inverses for fast proving.
 
-## Features
+---
 
-- **Complete STARK Proof System**: Generates cryptographic proofs for arithmetic operations
-- **Modular Arithmetic**: Supports addition, multiplication, and subtraction modulo q
-- **Range Checking**: Ensures all values remain within the valid field range
-- **Efficient Implementation**: Uses the STWO framework for optimized proof generation
-- **Comprehensive Testing**: Includes test suites for all components
+## Requirements
 
-## Architecture
+* **Rust nightly:** pinned via `rust-toolchain.toml` to `nightly-2025-04-06` (installs `rustfmt`, `clippy`, `rust-analyzer`).
+* **Rust edition:** 2024 (see `Cargo.toml`).
+* **CPU:** SIMD backend from STWO is used; x86\_64 with AVX2 is recommended. Other targets may require swapping the backend.
 
-The system is organized into several key components:
+Install the pinned toolchain:
 
-### Core Modules
-
-- **`zq/add.rs`**: Modular addition operations
-- **`zq/mul.rs`**: Modular multiplication operations  
-- **`zq/sub.rs`**: Modular subtraction operations
-- **`zq/range_check.rs`**: Range checking for field values
-- **`big_air.rs`**: Combined proof system orchestrating all components
-
-### Key Concepts
-
-1. **Trace Generation**: Each operation generates execution traces that encode the computation
-2. **Constraint Evaluation**: Constraints ensure mathematical correctness of operations
-3. **Lookup Relations**: Range checking uses lookup tables to validate field membership
-4. **Interaction Claims**: Connect arithmetic operations with range checking through lookup protocols
-
-## Installation
-
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-falcon-air = { git = "https://github.com/your-username/falcon-air" }
+```bash
+rustup toolchain install nightly-2025-04-06
+rustup default nightly-2025-04-06
 ```
 
-## Usage
+---
 
-### Basic Usage
+## Build & Run
+
+```bash
+# Build
+cargo build --release
+
+# Run demo binary (generates a proof)
+cargo run --release
+# -> writes ./proof.bin (bzip2-compressed serialization of the proof)
+```
+
+---
+
+## Using as a Library
+
+`falcon-air` is a library crate with a demo binary. Add it as a git dependency or include it in a workspace.
+
+<details>
+<summary>Example</summary>
 
 ```rust
-use falcon_air::big_air::prove_falcon;
+use bzip2::{write::BzEncoder, Compression};
+use std::io::Write;
 
-// Generate a STARK proof for all arithmetic operations
-match prove_falcon() {
-    Ok(proof) => {
-        println!("Proof generated successfully!");
-        // The proof can now be verified by a verifier
-    }
-    Err(e) => {
-        eprintln!("Proof generation failed: {:?}", e);
-    }
+use falcon_air::{
+    big_air::prove_falcon,
+    POLY_SIZE, TEST_S1, PK, MSG_POINT,
+};
+
+fn main() -> anyhow::Result<()> {
+    // Each input is a length-POLY_SIZE vector in Z_q
+    let proof = prove_falcon(TEST_S1, PK, MSG_POINT)?;
+
+    // Serialize + compress to a file (demo behavior of the binary)
+    let mut out = BzEncoder::new(std::fs::File::create("proof.bin")?, Compression::best());
+    let bytes = bincode::serialize(&proof)?;
+    out.write_all(&bytes)?;
+    out.finish()?;
+    Ok(())
 }
 ```
 
-### Individual Components
+</details>
 
-You can also use individual components for specific operations:
+---
 
-```rust
-use falcon_air::zq::{add, mul, sub, range_check};
+## What’s Inside (Directory Overview)
 
-// Create claims for specific operations
-let add_claim = add::Claim { log_size: 14 };
-let mul_claim = mul::Claim { log_size: 14 };
-let sub_claim = sub::Claim { log_size: 14 };
-
-// Generate traces
-let (add_trace, add_remainders) = add_claim.gen_trace();
-let (mul_trace, mul_remainders) = mul_claim.gen_trace();
-let (sub_trace, sub_remainders) = sub_claim.gen_trace();
+```
+src/
+  zq/            # Arithmetic over Z_q (q=12289): add, sub, mul, range_check, inverses, Q
+  polys/         # Higher-level polynomial ops: multiplication, subtraction, Euclidean norm
+  ntts/          # NTT/INTT circuits and preprocessed roots of unity
+    ntt/         # Butterfly + merge phases for evaluation (NTT)
+    intt/        # Split + ibutterfly phases for interpolation (INTT)
+    roots/       # Preprocessed and inverse roots tables
+  big_air/       # “Big AIR”: claims, relations, lookups, and prove_falcon() wiring
+  debug/         # Constraint/trace debugging utilities and relation tracking
+  lib.rs         # Public modules, constants (bounds, POLY_LOG_SIZE, etc.), test fixtures
+  main.rs        # Demo binary: generates a proof and writes proof.bin
 ```
 
-## Field Specification
+---
 
-The system operates in the field Z_q where:
+## Design Notes
 
-- **q = 12289** = 12 * 1024 + 1
-- **Field Size**: 2^13.585 bits
-- **Compatibility**: Chosen for Falcon signature scheme compatibility
+* **Arithmetic modulus vs. STARK field:** Arithmetic is in \$\mathbb{Z}\_q\$ with `q = 12289` (`zq::Q`). Traces and constraints are over STWO’s base field (`M31`) using the SIMD backend. Range checks and lookups tie the two worlds together safely.
+* **Traces & constraints:** Each component emits trace columns; constraints enforce the arithmetic identities, and **lookup relations** enforce range membership and table consistency (e.g., roots, inverses).
+* **Single proof:** `big_air::prove_falcon(...)` builds and commits all traces and emits one `StarkProof<Blake2sMerkleHasher>`.
 
-### Mathematical Properties
+---
 
-- q is a prime number
-- q - 1 = 2^13 * 3 * 641
-- Supports efficient modular arithmetic operations
-- Compatible with STARK proof systems
+## Configuration & Constants
 
-## Proof System Details
+* `POLY_LOG_SIZE = 10` and `POLY_SIZE = 1024` (NTT-friendly power-of-two sizes).
+* `SIGNATURE_BOUNDS` and the derived `LOW_SIG_BOUND` / `HIGH_SIG_BOUND` constants encode the norm bounds used by Falcon-like signatures.
+* Test vectors: `TEST_S1`, `PK`, `MSG_POINT` are included for the demo proof.
 
-### Trace Structure
+---
 
-Each arithmetic operation generates traces with the following structure:
+## Tips for Development
 
-- **Addition**: [a, b, quotient, remainder] (4 columns)
-- **Multiplication**: [a, b, quotient, remainder] (4 columns)  
-- **Subtraction**: [a, b, remainder] (3 columns)
-- **Range Check**: [multiplicities] (1 column)
+* Formatting & linting:
 
-### Constraints
+  ```bash
+  cargo fmt
+  cargo clippy --all-targets -- -D warnings
+  ```
+* Tests:
 
-The system enforces several types of constraints:
+  ```bash
+  cargo test
+  ```
 
-1. **Arithmetic Constraints**: Ensure mathematical correctness
-   - Addition: a + b = quotient * q + remainder
-   - Multiplication: a * b = quotient * q + remainder
-   - Subtraction: a - b = remainder (mod q)
+  (Component tests live under modules; extend as needed.)
 
-2. **Range Constraints**: Ensure values are in [0, q)
-   - Uses lookup tables for efficient range checking
-   - Validates all operation results
 
-3. **Lookup Relations**: Connect arithmetic operations with range checking
-   - Ensures consistency across all components
-   - Provides cryptographic security
-
-## Testing
-
-Run the test suite:
-
-```bash
-cargo test
-```
-
-Run specific tests:
-
-```bash
-# Test the complete proof system
-cargo test big_air::tests::test_prove_falcon
-
-# Test individual components
-cargo test zq::add
-cargo test zq::mul
-cargo test zq::sub
-cargo test zq::range_check
-```
-
-## Performance
-
-The system is optimized for:
-
-- **Efficient Trace Generation**: Uses SIMD operations where possible
-- **Fast Constraint Evaluation**: Leverages the STWO framework optimizations
-- **Compact Proofs**: Generates minimal-size STARK proofs
-- **Parallel Processing**: Supports parallel execution for large traces
-
-## Security
-
-The system provides cryptographic security through:
-
-- **STARK Proofs**: Zero-knowledge proofs of computational integrity
-- **Fiat-Shamir Transform**: Converts interactive proofs to non-interactive
-- **Merkle Tree Commitments**: Efficient commitment schemes for large data
-- **Lookup Protocols**: Secure range checking without revealing values
-
-## Dependencies
-
-- **STWO**: STARK proof framework
-- **STWO Constraint Framework**: Circuit building framework
-- **num-traits**: Mathematical trait implementations
-- **rand**: Random number generation
-- **itertools**: Iterator utilities
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
+---
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## References
-
-- [STARK Proofs](https://eprint.iacr.org/2018/046.pdf)
-- [Falcon Signature Scheme](https://falcon-sign.info/)
-- [STWO Framework](https://github.com/starkware-libs/stwo)
-
-## Acknowledgments
-
-- Built on the STWO framework by StarkWare
-- Inspired by the Falcon signature scheme requirements
-- Uses modern Rust cryptography practices 
+If you intend this project to be **MIT-licensed**, add a `LICENSE` file to the repo (the README previously referenced one). Update this section if you choose a different license.

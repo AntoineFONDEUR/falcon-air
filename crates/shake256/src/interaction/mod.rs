@@ -1,5 +1,6 @@
 mod chi_8_8_8;
 mod keccak;
+mod keccak_round;
 mod rc_7_7_7;
 pub mod relations;
 mod shake256;
@@ -16,8 +17,8 @@ use stwo_prover::core::{
 
 use crate::{
     trace::{
-        chi_8_8_8 as chi_8_8_8_trace, keccak as keccak_trace, rc_7_7_7 as rc_7_7_7_trace,
-        shake256 as shake256_trace, xor_8_8 as xor_8_8_trace,
+        chi_8_8_8 as chi_8_8_8_trace, keccak as keccak_trace, keccak_round as keccak_round_trace,
+        rc_7_7_7 as rc_7_7_7_trace, shake256 as shake256_trace, xor_8_8 as xor_8_8_trace,
         xor_8_8_8 as xor_8_8_8_trace,
     },
     PublicData,
@@ -26,6 +27,7 @@ use crate::{
 pub struct InteractionClaimData {
     pub shake256: shake256_trace::InteractionClaimData,
     pub keccak: keccak_trace::InteractionClaimData,
+    pub keccak_round: keccak_round_trace::InteractionClaimData,
     pub xor_8_8_8: xor_8_8_8_trace::InteractionClaimData,
     pub chi_8_8_8: chi_8_8_8_trace::InteractionClaimData,
     pub xor_8_8: xor_8_8_trace::InteractionClaimData,
@@ -36,6 +38,7 @@ pub struct InteractionClaimData {
 pub struct InteractionClaim {
     pub shake256: shake256::InteractionClaim,
     pub keccak: keccak::InteractionClaim,
+    pub keccak_round: keccak_round::InteractionClaim,
     pub xor_8_8_8: xor_8_8_8::InteractionClaim,
     pub chi_8_8_8: chi_8_8_8::InteractionClaim,
     pub xor_8_8: xor_8_8::InteractionClaim,
@@ -46,6 +49,7 @@ pub struct InteractionClaim {
 pub struct InteractionElements {
     pub shake256: relations::Shake256,
     pub keccak: relations::Keccak,
+    pub keccak_round: relations::KeccakRound,
     pub xor_8_8_8: relations::Xor_8_8_8,
     pub chi_8_8_8: relations::Chi_8_8_8,
     pub xor_8_8: relations::Xor_8_8,
@@ -57,6 +61,7 @@ impl InteractionElements {
         Self {
             shake256: relations::Shake256::draw(channel),
             keccak: relations::Keccak::draw(channel),
+            keccak_round: relations::KeccakRound::draw(channel),
             xor_8_8_8: relations::Xor_8_8_8::draw(channel),
             chi_8_8_8: relations::Chi_8_8_8::draw(channel),
             xor_8_8: relations::Xor_8_8::draw(channel),
@@ -80,6 +85,11 @@ impl InteractionClaim {
             );
         let (keccak_interaction_claim, keccak_trace) =
             keccak::InteractionClaim::generate_interaction_trace(
+                &interaction_elements,
+                interaction_claim_data,
+            );
+        let (keccak_round_interaction_claim, keccak_round_trace) =
+            keccak_round::InteractionClaim::generate_interaction_trace(
                 &interaction_elements,
                 interaction_claim_data,
             );
@@ -107,6 +117,7 @@ impl InteractionClaim {
         let trace = shake256_trace
             .into_iter()
             .chain(keccak_trace)
+            .chain(keccak_round_trace)
             .chain(xor_8_8_8_trace)
             .chain(chi_8_8_8_trace)
             .chain(xor_8_8_trace)
@@ -117,6 +128,7 @@ impl InteractionClaim {
             Self {
                 shake256: shake256_interaction_claim,
                 keccak: keccak_interaction_claim,
+                keccak_round: keccak_round_interaction_claim,
                 xor_8_8_8: xor_8_8_8_interaction_claim,
                 chi_8_8_8: chi_8_8_8_interaction_claim,
                 xor_8_8: xor_8_8_interaction_claim,
@@ -134,6 +146,7 @@ impl InteractionClaim {
         let mut sum = public_data.initial_logup_sum(interaction_elements);
         sum += self.shake256.claimed_sum;
         sum += self.keccak.claimed_sum;
+        sum += self.keccak_round.claimed_sum;
         sum += self.xor_8_8_8.claimed_sum;
         sum += self.chi_8_8_8.claimed_sum;
         sum += self.xor_8_8.claimed_sum;
@@ -144,6 +157,7 @@ impl InteractionClaim {
     pub fn mix_into(&self, channel: &mut impl Channel) {
         self.shake256.mix_into(channel);
         self.keccak.mix_into(channel);
+        self.keccak_round.mix_into(channel);
         self.xor_8_8_8.mix_into(channel);
         self.chi_8_8_8.mix_into(channel);
         self.xor_8_8.mix_into(channel);

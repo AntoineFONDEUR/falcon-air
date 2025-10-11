@@ -1,5 +1,6 @@
 mod chi_8_8_8;
 mod keccak;
+mod keccak_round;
 mod rc_7_7_7;
 mod shake256;
 mod xor_8_8;
@@ -15,6 +16,7 @@ use crate::trace::Claim;
 pub struct Components {
     pub shake256: shake256::Component,
     pub keccak: keccak::Component,
+    pub keccak_round: keccak_round::Component,
     pub xor_8_8_8: xor_8_8_8::Component,
     pub rc_7_7_7: rc_7_7_7::Component,
     pub chi_8_8_8: chi_8_8_8::Component,
@@ -44,6 +46,14 @@ impl Components {
                     interaction_elements: interaction_elements.clone(),
                 },
                 interaction_claim.keccak.claimed_sum,
+            ),
+            keccak_round: keccak_round::Component::new(
+                location_allocator,
+                keccak_round::Eval {
+                    claim: claim.keccak_round.clone(),
+                    interaction_elements: interaction_elements.clone(),
+                },
+                interaction_claim.keccak_round.claimed_sum,
             ),
             xor_8_8_8: xor_8_8_8::Component::new(
                 location_allocator,
@@ -84,6 +94,7 @@ impl Components {
         vec![
             &self.shake256,
             &self.keccak,
+            &self.keccak_round,
             &self.xor_8_8_8,
             &self.chi_8_8_8,
             &self.xor_8_8,
@@ -95,6 +106,7 @@ impl Components {
         vec![
             &self.shake256,
             &self.keccak,
+            &self.keccak_round,
             &self.xor_8_8_8,
             &self.chi_8_8_8,
             &self.xor_8_8,

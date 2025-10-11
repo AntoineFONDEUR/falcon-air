@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use num_traits::Zero;
+use num_traits::{One, Zero};
 use stwo_constraint_framework::{EvalAtRow, FrameworkComponent, FrameworkEval, RelationEntry};
 use stwo_prover::core::fields::m31::M31;
 
@@ -27,6 +27,7 @@ impl FrameworkEval for Eval {
 
     fn evaluate<E: EvalAtRow>(&self, mut eval: E) -> E {
         let enabler = E::EF::from(eval.next_trace_mask());
+        eval.add_constraint(enabler.clone() * (E::EF::one() - enabler.clone()));
 
         // ╔════════════════════════════════════╗
         // ║     Padding and Initialization     ║

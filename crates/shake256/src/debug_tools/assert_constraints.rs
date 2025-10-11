@@ -156,6 +156,7 @@ fn assert_components(trace: TreeVec<Vec<&Vec<M31>>>, components: &Components) {
     let Components {
         shake256,
         keccak,
+        keccak_round,
         xor_8_8_8,
         rc_7_7_7,
         chi_8_8_8,
@@ -163,6 +164,7 @@ fn assert_components(trace: TreeVec<Vec<&Vec<M31>>>, components: &Components) {
     } = components;
     assert_component(&shake256, &trace);
     assert_component(&keccak, &trace);
+    assert_component(&keccak_round, &trace);
     assert_component(&xor_8_8_8, &trace);
     assert_component(&chi_8_8_8, &trace);
     assert_component(&xor_8_8, &trace);

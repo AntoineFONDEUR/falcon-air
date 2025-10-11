@@ -3,10 +3,10 @@
 use crate::{
     constants::{
         DELIMITED_SUFFIX, FINAL_BIT, N_BYTES_IN_MESSAGE, N_BYTES_IN_OUTPUT, N_BYTES_IN_RATE,
-        N_BYTES_IN_STATE, N_BYTES_IN_U64, N_LANES_SHAKE256, N_SQUEEZING,
+        N_BYTES_IN_STATE, N_ROUNDS, N_SQUEEZING,
     },
     interaction::relations::RELATION_SIZE_SHAKE256,
-    utils::Enabler,
+    utils::{keccak_f1600, keccak_f1600_round, Enabler},
 };
 use num_traits::Zero;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -26,7 +26,6 @@ use stwo_prover::core::{
     pcs::TreeVec,
     vcs::blake2_merkle::Blake2sMerkleChannel,
 };
-use tiny_keccak::keccakf;
 
 const N_SHAKE256_LOOKUPS: usize = 2;
 // We record Keccak states as (pre, post) pairs: one pair for absorption, and
@@ -148,7 +147,7 @@ impl Claim {
                 *lookup_data.keccak[indexes.keccak_index] = S;
                 indexes.keccak_index += 1;
 
-                apply_keccakf(&mut S);
+                keccak_f1600(&mut S);
                 S.iter().for_each(|x| {
                     *row[indexes.col_index] = *x;
                     indexes.col_index += 1;
@@ -174,7 +173,7 @@ impl Claim {
                     *lookup_data.keccak[indexes.keccak_index] = S;
                     indexes.keccak_index += 1;
 
-                    apply_keccakf(&mut S);
+                    keccak_f1600(&mut S);
                     S.iter().enumerate().for_each(|(j, x)| {
                         if j < N_BYTES_IN_RATE {
                             Z[i * N_BYTES_IN_RATE + j] = *x;
@@ -202,34 +201,8 @@ impl Claim {
     }
 }
 
-// Packs byte-oriented state into 25 u64 words per lane, applies keccakf, and writes back.
-pub(crate) fn apply_keccakf(S: &mut [PackedM31; N_BYTES_IN_STATE]) {
-    for lane in 0..N_LANES {
-        let mut state = [0u64; N_LANES_SHAKE256];
-
-        // Read 200 bytes -> 25 little-endian u64 words
-        for w in 0..N_LANES_SHAKE256 {
-            let mut v = 0u64;
-            for i in 0..N_BYTES_IN_U64 {
-                let idx = w * N_BYTES_IN_U64 + i;
-                let byte = S[idx].to_array()[lane].0 as u64;
-                v |= byte << (N_BYTES_IN_U64 * i);
-            }
-            state[w] = v;
-        }
-
-        // Permute
-        keccakf(&mut state);
-
-        // Write back as bytes
-        for w in 0..N_LANES_SHAKE256 {
-            let v = state[w];
-            for i in 0..N_BYTES_IN_U64 {
-                let idx = w * N_BYTES_IN_U64 + i;
-                let mut lanes = S[idx].to_array();
-                lanes[lane] = M31::from(((v >> (N_BYTES_IN_U64 * i)) & 0xFF) as u32);
-                S[idx] = PackedM31::from_array(lanes);
-            }
-        }
-    }
+/// Applies a single Keccak-f[1600] round in place.
+pub(crate) fn apply_keccakf(S: &mut [PackedM31; N_BYTES_IN_STATE], round: usize) {
+    debug_assert!(round < N_ROUNDS);
+    keccak_f1600_round(S, round);
 }

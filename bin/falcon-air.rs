@@ -26,8 +26,8 @@ use std::io::Write;
 
 use bzip2::Compression;
 use bzip2::write::BzEncoder;
-use falcon_air::big_air::prove_falcon;
-use falcon_air::input::{MSG_POINT, PK, TEST_S1};
+use falcon::big_air::prove_falcon;
+use falcon::input::{MSG_POINT, PK, TEST_S1};
 use tracing_subscriber::fmt::format::FmtSpan;
 
 /// Main function that generates a complete STARK proof for Falcon signature operations.
